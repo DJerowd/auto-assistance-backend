@@ -9,6 +9,7 @@ Backend da aplicação AutoAssistance.
 - **MySQL** 2.18.1
 - **bcrypt** 6.0.0 (criptografia de senhas)
 - **jsonwebtoken** (autenticação JWT)
+- **joi** (validação de dados)
 - **cors** 2.8.5
 - **dotenv** 17.0.1
 - **nodemon** 3.1.10 (desenvolvimento)
@@ -78,15 +79,27 @@ Registra novo usuário
     "password": "senha123"
   }
   ```
-- **Resposta**:
+- **Resposta de sucesso:**
   ```json
   {
+    "success": true,
     "message": "Usuário criado com sucesso",
-    "user": {
+    "data": {
       "id": 1,
       "name": "Nome do Usuário",
       "email": "email@exemplo.com"
     }
+  }
+  ```
+- **Resposta de erro de validação:**
+  ```json
+  {
+    "success": false,
+    "message": "Dados inválidos",
+    "details": [
+      "\"email\" must be a valid email",
+      "\"password\" length must be at least 6 characters long"
+    ]
   }
   ```
 
@@ -99,44 +112,101 @@ Login do usuário - **Gera token JWT**
     "password": "senha123"
   }
   ```
-- **Resposta**:
+- **Resposta de sucesso:**
   ```json
   {
+    "success": true,
     "message": "Login realizado com sucesso",
-    "user": {
-      "id": 1,
-      "name": "Nome do Usuário",
-      "email": "email@exemplo.com"
-    },
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    "data": {
+      "user": {
+        "id": 1,
+        "name": "Nome do Usuário",
+        "email": "email@exemplo.com"
+      },
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    }
+  }
+  ```
+- **Resposta de erro:**
+  ```json
+  {
+    "success": false,
+    "message": "Email ou senha incorretos"
   }
   ```
 
 #### **GET /users/me** (Protegido)
 Obtém dados do usuário logado
 - **Headers**: `Authorization: Bearer <token>`
-- **Resposta**: Dados do usuário atual
+- **Resposta:**
+  ```json
+  {
+    "success": true,
+    "message": "Usuário encontrado",
+    "data": {
+      "id": 1,
+      "name": "Nome do Usuário",
+      "email": "email@exemplo.com"
+    }
+  }
+  ```
 
 #### **GET /users/refresh** (Protegido)
 Renova o token JWT
 - **Headers**: `Authorization: Bearer <token>`
-- **Resposta**: Novo token JWT
+- **Resposta:**
+  ```json
+  {
+    "success": true,
+    "message": "Token renovado com sucesso",
+    "data": {
+      "user": {
+        "id": 1,
+        "name": "Nome do Usuário",
+        "email": "email@exemplo.com"
+      },
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    }
+  }
+  ```
 
 #### **GET /users** (Protegido)
 Lista todos os usuários (sem senha)
 - **Headers**: `Authorization: Bearer <token>`
-- **Resposta**: Array de usuários
+- **Resposta:**
+  ```json
+  {
+    "success": true,
+    "message": "Usuários encontrados",
+    "data": {
+      "users": [ ... ],
+      "page": 1,
+      "limit": 10,
+      "total": 2,
+      "totalPages": 1
+    }
+  }
+  ```
 
 #### **GET /users/:id** (Protegido)
 Busca usuário por ID
 - **Headers**: `Authorization: Bearer <token>`
-- **Parâmetros**: id (ID do usuário)
-- **Resposta**: Objeto do usuário
+- **Resposta:**
+  ```json
+  {
+    "success": true,
+    "message": "Usuário encontrado",
+    "data": {
+      "id": 1,
+      "name": "Nome do Usuário",
+      "email": "email@exemplo.com"
+    }
+  }
+  ```
 
 #### **PUT /users/:id** (Protegido)
 Atualiza usuário (apenas próprio usuário)
 - **Headers**: `Authorization: Bearer <token>`
-- **Parâmetros**: id (ID do usuário)
 - **Body**:
   ```json
   {
@@ -145,32 +215,75 @@ Atualiza usuário (apenas próprio usuário)
     "password": "novaSenha" // opcional
   }
   ```
-- **Resposta**: Mensagem de sucesso
+- **Resposta de sucesso:**
+  ```json
+  {
+    "success": true,
+    "message": "Usuário atualizado com sucesso",
+    "data": null
+  }
+  ```
 
 #### **DELETE /users/:id** (Protegido)
 Deleta usuário (apenas próprio usuário)
 - **Headers**: `Authorization: Bearer <token>`
-- **Parâmetros**: id (ID do usuário)
-- **Resposta**: Mensagem de sucesso
+- **Resposta:**
+  ```json
+  {
+    "success": true,
+    "message": "Usuário deletado com sucesso",
+    "data": null
+  }
+  ```
 
 ### 🚗 Veículos (Todas as rotas são protegidas)
 
 #### **GET /vehicles**
-Lista veículos do usuário logado
+Lista veículos do usuário logado (com paginação e filtros)
 - **Headers**: `Authorization: Bearer <token>`
-- **Resposta**: Array de veículos do usuário
+- **Query params:** `page`, `limit`, `brand`, `model`, `color`, `licensePlate`
+- **Resposta:**
+  ```json
+  {
+    "success": true,
+    "message": "Veículos encontrados",
+    "data": {
+      "vehicles": [ ... ],
+      "page": 1,
+      "limit": 10,
+      "total": 2,
+      "totalPages": 1
+    }
+  }
+  ```
 
 #### **GET /vehicles/:id**
 Busca veículo por ID (apenas se pertencer ao usuário)
 - **Headers**: `Authorization: Bearer <token>`
-- **Parâmetros**: id (ID do veículo)
-- **Resposta**: Objeto do veículo
+- **Resposta:**
+  ```json
+  {
+    "success": true,
+    "message": "Veículo encontrado",
+    "data": {
+      "id": 1,
+      "brand": "Fiat",
+      ...
+    }
+  }
+  ```
 
 #### **GET /vehicles/user/:userId**
 Lista veículos de um usuário específico (apenas próprio usuário)
 - **Headers**: `Authorization: Bearer <token>`
-- **Parâmetros**: userId (ID do usuário)
-- **Resposta**: Array de veículos do usuário
+- **Resposta:**
+  ```json
+  {
+    "success": true,
+    "message": "Veículos encontrados",
+    "data": [ ... ]
+  }
+  ```
 
 #### **POST /vehicles**
 Cria novo veículo para o usuário logado
@@ -187,13 +300,32 @@ Cria novo veículo para o usuário logado
     "mileage": 50000
   }
   ```
-- **Campos obrigatórios**: brand, model, color
-- **Resposta**: Mensagem de sucesso e ID do veículo criado
+- **Resposta de sucesso:**
+  ```json
+  {
+    "success": true,
+    "message": "Veículo criado com sucesso",
+    "data": {
+      "id": 10
+    }
+  }
+  ```
+- **Resposta de erro de validação:**
+  ```json
+  {
+    "success": false,
+    "message": "Dados inválidos",
+    "details": [
+      "\"brand\" is required",
+      "\"model\" is required",
+      "\"color\" is required"
+    ]
+  }
+  ```
 
 #### **PUT /vehicles/:id**
 Atualiza veículo (apenas se pertencer ao usuário)
 - **Headers**: `Authorization: Bearer <token>`
-- **Parâmetros**: id (ID do veículo)
 - **Body**:
   ```json
   {
@@ -206,14 +338,26 @@ Atualiza veículo (apenas se pertencer ao usuário)
     "mileage": 60000
   }
   ```
-- **Campos obrigatórios**: brand, model, color
-- **Resposta**: Mensagem de sucesso
+- **Resposta de sucesso:**
+  ```json
+  {
+    "success": true,
+    "message": "Veículo atualizado com sucesso",
+    "data": null
+  }
+  ```
 
 #### **DELETE /vehicles/:id**
 Deleta veículo (apenas se pertencer ao usuário)
 - **Headers**: `Authorization: Bearer <token>`
-- **Parâmetros**: id (ID do veículo)
-- **Resposta**: Mensagem de sucesso
+- **Resposta:**
+  ```json
+  {
+    "success": true,
+    "message": "Veículo deletado com sucesso",
+    "data": null
+  }
+  ```
 
 ## 🗄️ Estrutura do Banco de Dados
 
@@ -239,6 +383,8 @@ Deleta veículo (apenas se pertencer ao usuário)
 - **Senhas criptografadas** com bcrypt (salt rounds: 10)
 - **Autenticação JWT** com tokens de 24 horas
 - **Tokens gerados apenas no login**
+- **Validação de dados** com Joi
+- **Padronização de respostas** para sucesso e erro
 - **Validação de campos** obrigatórios
 - **Verificação de email único** para usuários
 - **Controle de acesso** baseado em propriedade de recursos

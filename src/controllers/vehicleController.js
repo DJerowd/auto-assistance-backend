@@ -1,16 +1,46 @@
 import {db} from "../db.js";
+import { sendSuccess, sendError } from "../middlewares/responseMiddleware.js";
 
-// GET ALL VEHICLES (apenas veículos do usuário logado)
+// GET ALL VEHICLES (apenas veículos do usuário logado) com paginação e filtros
 export const getVehicles = (req, res) => {
     const userId = req.user.id;
-    const q = "SELECT * FROM vehicles_table WHERE userId = ?";
-    
-    db.query(q, [userId], (err, data) => {
-        if (err) {
-            return res.status(500).json({ message: "Erro interno no servidor" });
-        }
-        if (data.length === 0) return res.status(204).json({ message: "Não há veículos cadastrados" });
-        return res.status(200).json(data);
+    const { page = 1, limit = 10, brand, model, color, licensePlate } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    let filters = "userId = ?";
+    let values = [userId];
+    if (brand) {
+        filters += " AND brand LIKE ?";
+        values.push(`%${brand}%`);
+    }
+    if (model) {
+        filters += " AND model LIKE ?";
+        values.push(`%${model}%`);
+    }
+    if (color) {
+        filters += " AND color LIKE ?";
+        values.push(`%${color}%`);
+    }
+    if (licensePlate) {
+        filters += " AND licensePlate LIKE ?";
+        values.push(`%${licensePlate}%`);
+    }
+    const countQuery = `SELECT COUNT(*) as total FROM vehicles_table WHERE ${filters}`;
+    db.query(countQuery, values, (err, countResult) => {
+        if (err) return sendError(res, "Erro interno no servidor", 500);
+        const total = countResult[0].total;
+        if (total === 0) return sendError(res, "Não há veículos cadastrados", 204);
+        const totalPages = Math.ceil(total / parseInt(limit));
+        const dataQuery = `SELECT * FROM vehicles_table WHERE ${filters} LIMIT ? OFFSET ?`;
+        db.query(dataQuery, [...values, parseInt(limit), offset], (err, data) => {
+            if (err) return sendError(res, "Erro interno no servidor", 500);
+            return sendSuccess(res, "Veículos encontrados", {
+                vehicles: data,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                totalPages
+            });
+        });
     });
 };
 
@@ -19,15 +49,10 @@ export const getVehicleById = (req, res) => {
     const vehicleId = req.params.id;
     const userId = req.user.id;
     const q = "SELECT * FROM vehicles_table WHERE id = ? AND userId = ?";
-    
     db.query(q, [vehicleId, userId], (err, data) => {
-        if (err) {
-            return res.status(500).json({ message: "Erro interno no servidor" });
-        }
-        if (data.length === 0) {
-            return res.status(404).json({ message: "Veículo não encontrado" });
-        }
-        return res.status(200).json(data[0]);
+        if (err)  return sendError(res, "Erro interno no servidor", 500);
+        if (data.length === 0) return sendError(res, "Veículo não encontrado", 404);
+        return sendSuccess(res, "Veículo encontrado", data[0]);
     });
 };
 
@@ -35,21 +60,12 @@ export const getVehicleById = (req, res) => {
 export const getVehiclesByUserId = (req, res) => {
     const requestedUserId = req.params.userId;
     const currentUserId = req.user.id;
-    
-    if (requestedUserId != currentUserId) {
-        return res.status(403).json({ message: "Acesso negado: você só pode ver seus próprios veículos" });
-    }
-    
+    if (requestedUserId != currentUserId) return sendError(res, "Acesso negado: você só pode ver seus próprios veículos", 403);
     const q = "SELECT * FROM vehicles_table WHERE userId = ?";
-    
     db.query(q, [requestedUserId], (err, data) => {
-        if (err) {
-            return res.status(500).json({ message: "Erro interno no servidor" });
-        }
-        if (data.length === 0) {
-            return res.status(204).json({ message: "Não há veículos cadastrados para este usuário" });
-        }
-        return res.status(200).json(data);
+        if (err) return sendError(res, "Erro interno no servidor", 500);
+        if (data.length === 0) return sendError(res, "Não há veículos cadastrados para este usuário", 204);
+        return sendSuccess(res, "Veículos encontrados", data);
     });
 };
 
@@ -57,22 +73,12 @@ export const getVehiclesByUserId = (req, res) => {
 export const createVehicle = (req, res) => {
     const userId = req.user.id;
     const { name, brand, model, version, color, licensePlate, mileage } = req.body;
-    
-    if (!brand || !model || !color) {
-        return res.status(400).json({ message: "Campos obrigatórios: brand, model, color" });
-    }
-    
+    if (!brand || !model || !color) return sendError(res, "Campos obrigatórios: brand, model, color", 400);
     const q = "INSERT INTO vehicles_table (userId, name, brand, model, version, color, licensePlate, mileage) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
     const values = [userId, name, brand, model, version, color, licensePlate, mileage];
-    
     db.query(q, values, (err, data) => {
-        if (err) {
-            return res.status(500).json({ message: "Erro interno no servidor" });
-        }
-        return res.status(201).json({ 
-            message: "Veículo criado com sucesso",
-            id: data.insertId 
-        });
+        if (err) return sendError(res, "Erro interno no servidor", 500);
+        return sendSuccess(res, "Veículo criado com sucesso", { id: data.insertId }, 201);
     });
 };
 
@@ -81,22 +87,13 @@ export const updateVehicle = (req, res) => {
     const vehicleId = req.params.id;
     const userId = req.user.id;
     const { name, brand, model, version, color, licensePlate, mileage } = req.body;
-    
-    if (!brand || !model || !color) {
-        return res.status(400).json({ message: "Campos obrigatórios: brand, model, color" });
-    }
-    
+    if (!brand || !model || !color) return sendError(res, "Campos obrigatórios: brand, model, color", 400);
     const q = "UPDATE vehicles_table SET name = ?, brand = ?, model = ?, version = ?, color = ?, licensePlate = ?, mileage = ? WHERE id = ? AND userId = ?";
     const values = [name, brand, model, version, color, licensePlate, mileage, vehicleId, userId];
-    
     db.query(q, values, (err, data) => {
-        if (err) {
-            return res.status(500).json({ message: "Erro interno no servidor" });
-        }
-        if (data.affectedRows === 0) {
-            return res.status(404).json({ message: "Veículo não encontrado ou você não tem permissão para editá-lo" });
-        }
-        return res.status(200).json({ message: "Veículo atualizado com sucesso" });
+        if (err) return sendError(res, "Erro interno no servidor", 500);
+        if (data.affectedRows === 0) return sendError(res, "Veículo não encontrado ou você não tem permissão para editá-lo", 404);
+        return sendSuccess(res, "Veículo atualizado com sucesso");
     });
 };
 
@@ -105,14 +102,9 @@ export const deleteVehicle = (req, res) => {
     const vehicleId = req.params.id;
     const userId = req.user.id;
     const q = "DELETE FROM vehicles_table WHERE id = ? AND userId = ?";
-    
     db.query(q, [vehicleId, userId], (err, data) => {
-        if (err) {
-            return res.status(500).json({ message: "Erro interno no servidor" });
-        }
-        if (data.affectedRows === 0) {
-            return res.status(404).json({ message: "Veículo não encontrado ou você não tem permissão para deletá-lo" });
-        }
-        return res.status(200).json({ message: "Veículo deletado com sucesso" });
+        if (err) return sendError(res, "Erro interno no servidor", 500);
+        if (data.affectedRows === 0) return sendError(res, "Veículo não encontrado ou você não tem permissão para deletá-lo", 404);
+        return sendSuccess(res, "Veículo deletado com sucesso");
     });
 };

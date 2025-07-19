@@ -21,7 +21,7 @@ export const verifyToken = (req, res, next) => {
 // Middleware para verificar se o usuário é o proprietário do recurso
 export const verifyOwnership = (req, res, next) => {
     const userId = req.user.id;
-    const resourceUserId = req.params.userId || req.body.userId;
+    const resourceUserId = req.params.id || req.body.userId;
     if (userId != resourceUserId) return res.status(403).json({ message: "Acesso negado: você não tem permissão para acessar este recurso" });
     next();
 };

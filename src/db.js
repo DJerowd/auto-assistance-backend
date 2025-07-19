@@ -1,13 +1,16 @@
 import mysql from "mysql";
+import dotenv from "dotenv";
 import { userSchema } from "../models/userSchema.js";
 import { vehicleSchema } from "../models/vehicleSchema.js";
 
+dotenv.config();
+
 // CONECTION CONFIG
 export const db = mysql.createConnection({
-    host: "localhost",
-    user: "root",
-    password: "Root141314",
-    database: "auto_assistance_schema"
+    host: process.env.DB_HOST || "localhost",
+    user: process.env.DB_USER || "root",
+    password: process.env.DB_PASSWORD || "Root141314",
+    database: process.env.DB_NAME || "auto_assistance_schema"
 });
 
 // DATABASE AND TABLES LOADING

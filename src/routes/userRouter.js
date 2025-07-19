@@ -1,21 +1,31 @@
 import express from "express";
-import { createUser, loginUser, getUsers, getCurrentUser, refreshToken, getUserById, updateUser, deleteUser } from "../controllers/userController.js";
+import { 
+    getUsers, 
+    getUserById, 
+    getCurrentUser,
+    createUser, 
+    updateUser, 
+    deleteUser, 
+    loginUser,
+    refreshToken
+} from "../controllers/userController.js";
 import { verifyToken, verifyOwnership } from "../middlewares/authMiddleware.js";
+import { validateBody, userSchema } from "../middlewares/validationMiddleware.js";
 
 const router = express.Router();
 
 // Rotas públicas
-router.post("/", createUser);
-router.post("/login", loginUser);
+router.post("/", validateBody(userSchema, true), createUser); // Registro
+router.post("/login", loginUser); // Login
 
 // Rotas protegidas
-router.get("/", verifyToken, getUsers);
-router.get("/:id", verifyToken, getUserById);
-router.get("/me", verifyToken, getCurrentUser);
-router.get("/refresh", verifyToken, refreshToken);
+router.get("/", verifyToken, getUsers); // Lista todos os usuários (requer token)
+router.get("/me", verifyToken, getCurrentUser); // Usuário atual
+router.get("/refresh", verifyToken, refreshToken); // Renovar token
+router.get("/:id", verifyToken, getUserById); // Buscar usuário por ID
 
 // Rotas que requerem autenticação e verificação de propriedade
-router.put("/:id", verifyToken, verifyOwnership, updateUser);
-router.delete("/:id", verifyToken, verifyOwnership, deleteUser);
+router.put("/:id", verifyToken, verifyOwnership, validateBody(userSchema, false), updateUser); // Atualizar usuário
+router.delete("/:id", verifyToken, verifyOwnership, deleteUser); // Deletar usuário
 
 export default router; 
