@@ -1,5 +1,4 @@
 import mysql from "mysql";
-
 import { userSchema } from "../models/userSchema.js";
 import { vehicleSchema } from "../models/vehicleSchema.js";
 
