@@ -9,6 +9,7 @@ export const vehicleSchema =
         color varchar(45) NOT NULL,
         licensePlate varchar(10) DEFAULT NULL,
         mileage int DEFAULT NULL,
+        imageUrl varchar(255) DEFAULT NULL,
         PRIMARY KEY (id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;`
 ;

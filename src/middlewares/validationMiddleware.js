@@ -16,6 +16,7 @@ export const vehicleSchema = Joi.object({
     color: Joi.string().max(45).required(),
     licensePlate: Joi.string().max(10).allow(null, ''),
     mileage: Joi.number().integer().min(0).allow(null),
+    imageUrl: Joi.string().max(255).allow(null, ''), // campo opcional para imagem
 });
 
 // Middleware genérico de validação

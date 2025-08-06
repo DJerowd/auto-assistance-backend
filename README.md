@@ -1,6 +1,6 @@
 # AUTO-ASSISTANCE-BACKEND
 
-Backend da aplicação AutoAssistance.
+Backend da aplicação AutoAssistance desenvolvido em Node.js com Express.js e MySQL, com autenticação JWT e suporte a upload de imagens.
 
 ## 🚀 Tecnologias
 
@@ -10,6 +10,7 @@ Backend da aplicação AutoAssistance.
 - **bcrypt** 6.0.0 (criptografia de senhas)
 - **jsonwebtoken** (autenticação JWT)
 - **joi** (validação de dados)
+- **multer** (upload de arquivos)
 - **cors** 2.8.5
 - **dotenv** 17.0.1
 - **nodemon** 3.1.10 (desenvolvimento)
@@ -23,28 +24,28 @@ Backend da aplicação AutoAssistance.
 ## ⚙️ Configuração
 
 1. Clone o repositório
-  ```bash
-  git clone https://github.com/DJerowd/auto-assistance-backend.git
-  ```
+   ```bash
+   git clone https://github.com/DJerowd/auto-assistance-backend.git
+   ```
 2. Instale as dependências:
-  ```bash
-  npm install
-  ```
+   ```bash
+   npm install
+   ```
 3. Configure as variáveis de ambiente no arquivo `.env`:
-  ```
-  SERVER_PORT=3000
-  JWT_SECRET=sua_chave_secreta_muito_segura_aqui
-  ```
+   ```
+   SERVER_PORT=3000
+   JWT_SECRET=sua_chave_secreta_muito_segura_aqui
+   ```
 4. Configure o banco de dados MySQL:
-  - Host: localhost
-  - Usuário: root
-  - Senha: Root141314
-  - Database: auto_assistance_schema
+   - Host: localhost
+   - Usuário: root
+   - Senha: Root141314
+   - Database: auto_assistance_schema
 
 5. Execute o servidor:
-  ```bash
-  npm start
-  ```
+   ```bash
+   npm start
+   ```
 
 ## 🔐 Autenticação JWT
 
@@ -248,7 +249,16 @@ Lista veículos do usuário logado (com paginação e filtros)
     "success": true,
     "message": "Veículos encontrados",
     "data": {
-      "vehicles": [ ... ],
+      "vehicles": [
+        {
+          "id": 1,
+          "name": "Meu Carro",
+          "brand": "Toyota",
+          "model": "Corolla",
+          "color": "Prata",
+          "imageUrl": "http://localhost:3000/uploads/vehicles/1234567890-123456789.jpg"
+        }
+      ],
       "page": 1,
       "limit": 10,
       "total": 2,
@@ -268,7 +278,9 @@ Busca veículo por ID (apenas se pertencer ao usuário)
     "data": {
       "id": 1,
       "brand": "Fiat",
-      ...
+      "model": "Palio",
+      "color": "Branco",
+      "imageUrl": "http://localhost:3000/uploads/vehicles/1234567890-123456789.jpg"
     }
   }
   ```
@@ -281,24 +293,31 @@ Lista veículos de um usuário específico (apenas próprio usuário)
   {
     "success": true,
     "message": "Veículos encontrados",
-    "data": [ ... ]
+    "data": [
+      {
+        "id": 1,
+        "brand": "Toyota",
+        "model": "Corolla",
+        "imageUrl": "http://localhost:3000/uploads/vehicles/1234567890-123456789.jpg"
+      }
+    ]
   }
   ```
 
-#### **POST /vehicles**
+#### **POST /vehicles** (com upload de imagem)
 Cria novo veículo para o usuário logado
 - **Headers**: `Authorization: Bearer <token>`
-- **Body**:
-  ```json
-  {
-    "name": "Meu Carro",
-    "brand": "Toyota",
-    "model": "Corolla",
-    "version": "XEi",
-    "color": "Prata",
-    "licensePlate": "ABC1234",
-    "mileage": 50000
-  }
+- **Content-Type**: `multipart/form-data`
+- **Body** (form-data):
+  ```
+  name: Meu Carro
+  brand: Toyota
+  model: Corolla
+  version: XEi
+  color: Prata
+  licensePlate: ABC1234
+  mileage: 50000
+  image: [arquivo de imagem]
   ```
 - **Resposta de sucesso:**
   ```json
@@ -306,7 +325,8 @@ Cria novo veículo para o usuário logado
     "success": true,
     "message": "Veículo criado com sucesso",
     "data": {
-      "id": 10
+      "id": 10,
+      "imageUrl": "http://localhost:3000/uploads/vehicles/1234567890-123456789.jpg"
     }
   }
   ```
@@ -322,28 +342,37 @@ Cria novo veículo para o usuário logado
     ]
   }
   ```
-
-#### **PUT /vehicles/:id**
-Atualiza veículo (apenas se pertencer ao usuário)
-- **Headers**: `Authorization: Bearer <token>`
-- **Body**:
+- **Resposta de erro de upload:**
   ```json
   {
-    "name": "Novo Nome",
-    "brand": "Honda",
-    "model": "Civic",
-    "version": "EXL",
-    "color": "Preto",
-    "licensePlate": "XYZ5678",
-    "mileage": 60000
+    "success": false,
+    "message": "Arquivo muito grande. Tamanho máximo: 5MB"
   }
+  ```
+
+#### **PUT /vehicles/:id** (com upload de imagem)
+Atualiza veículo (apenas se pertencer ao usuário)
+- **Headers**: `Authorization: Bearer <token>`
+- **Content-Type**: `multipart/form-data`
+- **Body** (form-data):
+  ```
+  name: Novo Nome
+  brand: Honda
+  model: Civic
+  version: EXL
+  color: Preto
+  licensePlate: XYZ5678
+  mileage: 60000
+  image: [arquivo de imagem] (opcional)
   ```
 - **Resposta de sucesso:**
   ```json
   {
     "success": true,
     "message": "Veículo atualizado com sucesso",
-    "data": null
+    "data": {
+      "imageUrl": "http://localhost:3000/uploads/vehicles/1234567890-123456789.jpg"
+    }
   }
   ```
 
@@ -358,6 +387,56 @@ Deleta veículo (apenas se pertencer ao usuário)
     "data": null
   }
   ```
+
+#### **DELETE /vehicles/:id/image**
+Deleta apenas a imagem do veículo (apenas se pertencer ao usuário)
+- **Headers**: `Authorization: Bearer <token>`
+- **Resposta:**
+  ```json
+  {
+    "success": true,
+    "message": "Imagem do veículo deletada com sucesso",
+    "data": null
+  }
+  ```
+
+## 📸 Upload de Imagens
+
+### **Especificações:**
+- **Formatos aceitos**: JPEG, JPG, PNG, GIF, WebP
+- **Tamanho máximo**: 5MB por arquivo
+- **Localização**: `uploads/vehicles/`
+- **Acesso**: `http://localhost:3000/uploads/vehicles/nome_do_arquivo`
+
+### **Exemplo de upload com curl:**
+```bash
+curl -X POST \
+  -H "Authorization: Bearer seu_token_aqui" \
+  -F "name=Meu Carro" \
+  -F "brand=Toyota" \
+  -F "model=Corolla" \
+  -F "color=Prata" \
+  -F "image=@/caminho/para/imagem.jpg" \
+  http://localhost:3000/vehicles
+```
+
+### **Exemplo de upload com JavaScript (FormData):**
+```javascript
+const formData = new FormData();
+formData.append('name', 'Meu Carro');
+formData.append('brand', 'Toyota');
+formData.append('model', 'Corolla');
+formData.append('color', 'Prata');
+formData.append('image', fileInput.files[0]);
+
+fetch('http://localhost:3000/vehicles', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer seu_token_aqui'
+  },
+  body: formData
+});
+```
 
 ## 🗄️ Estrutura do Banco de Dados
 
@@ -377,6 +456,7 @@ Deleta veículo (apenas se pertencer ao usuário)
 - `color` (varchar(45), NOT NULL)
 - `licensePlate` (varchar(10))
 - `mileage` (int)
+- `imageUrl` (varchar(255)) - **NOVO**: caminho da imagem
 
 ## 🔒 Segurança
 
@@ -385,6 +465,7 @@ Deleta veículo (apenas se pertencer ao usuário)
 - **Tokens gerados apenas no login**
 - **Validação de dados** com Joi
 - **Padronização de respostas** para sucesso e erro
+- **Upload seguro de imagens** com validação de tipo e tamanho
 - **Validação de campos** obrigatórios
 - **Verificação de email único** para usuários
 - **Controle de acesso** baseado em propriedade de recursos

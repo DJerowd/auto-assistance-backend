@@ -15,8 +15,8 @@ import { validateBody, userSchema } from "../middlewares/validationMiddleware.js
 const router = express.Router();
 
 // Rotas públicas
-router.post("/", validateBody(userSchema, true), createUser); // Registro
-router.post("/login", loginUser); // Login
+router.post("/auth/register", validateBody(userSchema, true), createUser); // Registro
+router.post("/auth/login", loginUser); // Login
 
 // Rotas protegidas
 router.get("/", verifyToken, getUsers); // Lista todos os usuários (requer token)
