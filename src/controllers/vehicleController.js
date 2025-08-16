@@ -7,7 +7,7 @@ import path from "path";
 // GET ALL VEHICLES (apenas veículos do usuário logado) com paginação e filtros
 export const getVehicles = (req, res) => {
     const userId = req.user.id;
-    const { page = 1, limit = 10, brand, model, color, licensePlate } = req.query;
+    const { page = 1, limit = 10, brand, color, search } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     let filters = "userId = ?";
     let values = [userId];
@@ -15,23 +15,19 @@ export const getVehicles = (req, res) => {
         filters += " AND brand LIKE ?";
         values.push(`%${brand}%`);
     }
-    if (model) {
-        filters += " AND model LIKE ?";
-        values.push(`%${model}%`);
-    }
     if (color) {
         filters += " AND color LIKE ?";
         values.push(`%${color}%`);
     }
-    if (licensePlate) {
-        filters += " AND licensePlate LIKE ?";
-        values.push(`%${licensePlate}%`);
+    if (search) {
+        filters += " AND (name LIKE ? OR model LIKE ? OR version LIKE ? OR licensePlate LIKE ?)";
+        values.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
     const countQuery = `SELECT COUNT(*) as total FROM vehicles_table WHERE ${filters}`;
     db.query(countQuery, values, (err, countResult) => {
         if (err) return sendError(res, "Erro interno no servidor", 500);
         const total = countResult[0].total;
-        if (total === 0) return sendError(res, "Não há veículos cadastrados", 204);
+        if (total === 0) return sendError(res, "Nenhum veículo encontrado", 404);
         const totalPages = Math.ceil(total / parseInt(limit));
         const dataQuery = `SELECT * FROM vehicles_table WHERE ${filters} LIMIT ? OFFSET ?`;
         db.query(dataQuery, [...values, parseInt(limit), offset], (err, data) => {
@@ -90,14 +86,14 @@ export const getVehiclesByUserId = (req, res) => {
 // CREATE VEHICLE (apenas para o usuário logado)
 export const createVehicle = (req, res) => {
     const userId = req.user.id;
-    const { name, brand, model, version, color, licensePlate, mileage } = req.body;
+    const { name, brand, model, version, color, licensePlate, year, mileage } = req.body;
     if (!brand || !model || !color) return sendError(res, "Campos obrigatórios: brand, model, color", 400);
     
-    // Verificar se há imagem no upload
     const imageUrl = req.file ? req.file.filename : null;
+    if (licensePlate)  licensePlate = licensePlate.toUpperCase();
     
-    const q = "INSERT INTO vehicles_table (userId, name, brand, model, version, color, licensePlate, mileage, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-    const values = [userId, name, brand, model, version, color, licensePlate, mileage, imageUrl];
+    const q = "INSERT INTO vehicles_table (userId, name, brand, model, version, color, licensePlate, year, mileage, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    const values = [userId, name, brand, model, version, color, licensePlate, year, mileage, imageUrl];
     db.query(q, values, (err, data) => {
         if (err) return sendError(res, "Erro interno no servidor", 500);
         return sendSuccess(res, "Veículo criado com sucesso", { 
@@ -111,11 +107,25 @@ export const createVehicle = (req, res) => {
 export const updateVehicle = (req, res) => {
     const vehicleId = req.params.id;
     const userId = req.user.id;
-    const { name, brand, model, version, color, licensePlate, mileage } = req.body;
+    const { name, brand, model, version, color, licensePlate, year, mileage } = req.body;
     if (!brand || !model || !color) return sendError(res, "Campos obrigatórios: brand, model, color", 400);
     
-    // Verificar se há nova imagem no upload
+    const licensePlateUpper = licensePlate ? licensePlate.toUpperCase() : null;
     const newImageUrl = req.file ? req.file.filename : null;
+
+    // Atualizar com nova imagem
+    const updateWithImage = (imageUrl) => {
+        const query = `UPDATE vehicles_table SET name = ?, brand = ?, model = ?, version = ?, color = ?, licensePlate = ?, year = ?, mileage = ?, imageUrl = ?, updatedAt = NOW() WHERE id = ? AND userId = ?`;
+        const values = [name, brand, model, version, color, licensePlateUpper, year, mileage, imageUrl, vehicleId, userId];
+        db.query(query, values, (err, data) => {
+            if (err) return sendError(res, "Erro interno no servidor", 500);
+            if (data.affectedRows === 0) 
+                return sendError(res, "Veículo não encontrado ou você não tem permissão para editá-lo", 404);
+            return sendSuccess(res, "Veículo atualizado com sucesso", {
+                imageUrl: imageUrl ? getImageUrl(imageUrl) : null
+            });
+        });
+    };
     
     // Se há nova imagem, deletar a antiga
     if (newImageUrl) {
@@ -123,7 +133,6 @@ export const updateVehicle = (req, res) => {
         db.query(getOldImageQuery, [vehicleId, userId], (err, data) => {
             if (err) return sendError(res, "Erro interno no servidor", 500);
             if (data.length === 0) return sendError(res, "Veículo não encontrado ou você não tem permissão para editá-lo", 404);
-            
             // Deletar imagem antiga se existir
             if (data[0].imageUrl) {
                 const oldImagePath = path.join("uploads", "vehicles", data[0].imageUrl);
@@ -131,22 +140,12 @@ export const updateVehicle = (req, res) => {
                     fs.unlinkSync(oldImagePath);
                 }
             }
-            
-            // Atualizar com nova imagem
-            const updateQuery = "UPDATE vehicles_table SET name = ?, brand = ?, model = ?, version = ?, color = ?, licensePlate = ?, mileage = ?, imageUrl = ? WHERE id = ? AND userId = ?";
-            const updateValues = [name, brand, model, version, color, licensePlate, mileage, newImageUrl, vehicleId, userId];
-            db.query(updateQuery, updateValues, (err, data) => {
-                if (err) return sendError(res, "Erro interno no servidor", 500);
-                if (data.affectedRows === 0) return sendError(res, "Veículo não encontrado ou você não tem permissão para editá-lo", 404);
-                return sendSuccess(res, "Veículo atualizado com sucesso", {
-                    imageUrl: getImageUrl(newImageUrl)
-                });
-            });
+            updateWithImage(newImageUrl);
         });
     } else {
         // Atualizar sem mudar a imagem
-        const q = "UPDATE vehicles_table SET name = ?, brand = ?, model = ?, version = ?, color = ?, licensePlate = ?, mileage = ? WHERE id = ? AND userId = ?";
-        const values = [name, brand, model, version, color, licensePlate, mileage, vehicleId, userId];
+        const q = `UPDATE vehicles_table SET name = ?, brand = ?, model = ?, version = ?, color = ?, licensePlate = ?, year = ?, mileage = ?, updatedAt = NOW() WHERE id = ? AND userId = ?`;
+        const values = [name, brand, model, version, color, licensePlateUpper, year, mileage, vehicleId, userId];
         db.query(q, values, (err, data) => {
             if (err) return sendError(res, "Erro interno no servidor", 500);
             if (data.affectedRows === 0) return sendError(res, "Veículo não encontrado ou você não tem permissão para editá-lo", 404);
